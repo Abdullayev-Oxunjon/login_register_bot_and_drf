@@ -30,8 +30,30 @@ class User(AbstractUser):
             message="Yaroqsiz telefon raqam!"
         )],
     )
-    is_teacher = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'phone_number'
     REQUIRED_FIELDS = []
     objects = UserManager()
+
+
+class Group(models.Model):
+    title = models.CharField(max_length=155)
+
+    def __str__(self):
+        return self.title
+
+
+# Bu jarayonda Person modeli ham teacher uchun ham student uchun umumiy !
+# Botga oddiy user holatida kirgan insonni student yoki teacher ekanligini is_teacher fieldi orqali check qilamiz !
+class Person(models.Model):
+    fullname = models.CharField(max_length=155)
+    phone_number = models.CharField(max_length=155)
+    password = models.CharField(max_length=8)
+    group = models.ForeignKey(to='app.Group',
+                              on_delete=models.CASCADE,
+                              related_name='persons')
+    is_teacher = models.BooleanField(default=False)
+    score = models.FloatField(null=True, blank=True)
+
+    def __str__(self):
+        return self.fullname
