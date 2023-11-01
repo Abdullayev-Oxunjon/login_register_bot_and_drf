@@ -6,15 +6,26 @@ BASE_URL = 'http://127.0.0.1:8000/api/v1'
 
 
 # BU jarayonda belgilangan login URL manziliga POST so'rovini yuborish uchun
+# def login_user_to_api(phone_number, password):
+#     URL = f'{BASE_URL}/login/'
+#     data = {
+#         'phone_number': phone_number,
+#         'password': password,
+#     }
+#     response = requests.post(URL, json=data)
+#     return response
+
 def login_user_to_api(phone_number, password):
     URL = f'{BASE_URL}/login/'
     data = {
         'phone_number': phone_number,
         'password': password,
-    }
-    response = requests.post(URL, json=data)
-    return response
 
+    }
+
+    response = requests.post(URL, json=data)
+    print(response.text)
+    return response
 
 def add_grade_student(student_id, score):
     url = f"{BASE_URL}/add-grade/"
@@ -61,8 +72,13 @@ def update_grade_in_server(person_id, score):
         "score": score
     }
 
+    headers = {
+        'Authorization': 'Bearer YOUR_ACCESS_TOKEN'  # Include your access token if needed
+    }
+
     try:
-        response = requests.post(url, json=data)
+        response = requests.put(url, json=data, headers=headers)
+
         if response.status_code == 200:
             return True
         else:

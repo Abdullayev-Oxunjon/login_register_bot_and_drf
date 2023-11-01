@@ -10,8 +10,8 @@ from aiogram.dispatcher.filters import CommandStart, Text
 from aiogram.types import ReplyKeyboardRemove
 
 from bot.main.api import login_user_to_api, get_student_by_id, add_grade_student, update_grade_in_server
-from bot.main.buttons import login_button, main_menu_cancel, my_account, inline_student_button, inner_back_button, \
-    get_student
+from bot.main.buttons import login_button, main_menu_cancel, inline_student_button, inner_back_button, \
+    get_student, my_account
 from bot.main.states import LoginState, ShowUserState, AddUserState, UpdateGradeState
 
 os.environ.setdefault(key="DJANGO_SETTINGS_MODULE",
@@ -87,6 +87,36 @@ async def check_buttons(callback: types.CallbackQuery, state: FSMContext):
         await UpdateGradeState.next()
 
 
+@dp.message_handler(lambda message: message.text.isdigit(), state=UpdateGradeState.id)
+async def process_student_id(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['person_id'] = int(message.text)
+        student_id = int(message.text)
+        student = get_student_by_id(person_id=student_id)
+        if student:
+            data['student_id'] = student_id
+            await message.answer("Iltimos, talaba uchun bahoni yangilang:")
+            await UpdateGradeState.score.set()
+        else:
+            await message.answer(text="Bu id tegishli student yo'q\n"
+                                      "<b>Iltimos qayta kiriting </b>")
+
+
+@dp.message_handler(state=UpdateGradeState.score)
+async def process_score(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['score'] = float(message.text)
+
+    # Yangi baho qiymatini serverga yuborish
+    success = update_grade_in_server(data['person_id'], data['score'])
+
+    if success:
+        await message.answer(
+            f"<b>{data['person_id']}- id ga tegishli studentning bahosi {data['score']} bahoga yangilandi </b>")
+    else:
+        await message.answer(f"Bahoni yangilashda xatolik yuz berdi. Iltimos  qayta urinib ko'ring.")
+
+
 @dp.message_handler(state=LoginState.phone_number)
 async def request_password(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
@@ -101,7 +131,6 @@ async def request_password(message: types.Message, state: FSMContext):
         await LoginState.password.set()
 
 
-# Foydalanuvchidan passwordini olamiz !
 @dp.message_handler(state=LoginState.password)
 async def process_password(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
@@ -111,19 +140,22 @@ async def process_password(message: types.Message, state: FSMContext):
             return
 
         data['password'] = password
-        # Bu jarayonda esa haqiqatdan mana shu phone_number va passwordga ega databaseda
-        # bor yoki yo'qligini tekshiramiz!
 
         response = login_user_to_api(data['phone_number'], data['password'])
-
         if response.status_code == 200:
-            await message.reply(text="<b><em>Muvaffaqiyatli login</em></b>",
-                                reply_markup=my_account())
-            await state.finish()
+            user_info = response.json()  # JSON javobni o'qish
+            is_teacher = user_info.get('is_teacher', False)  # Agar "is_teacher" mavjud bo'lsa olish, aks holda False
+            if is_teacher:
+                await message.reply("<b>Siz teacher ekansiz !\n\nMuvaffaqiyatli login</b>",
+                                    reply_markup=my_account())
 
+            else:
+                await message.reply("<b>Siz student ekansiz!</b>",
+                                    reply_markup=ReplyKeyboardRemove())
+            await state.finish()
         else:
-            await message.reply("Noto'g'ri telefon raqam yoki parol.\n"
-                                "<b><em>Iltimos telefon raqam va passwordingizni qayta kiriting ! </em></b>")
+            await message.reply(
+                "Noto'g'ri telefon raqam yoki parol.\n<b><em>Iltimos telefon raqam va passwordingizni qayta kiriting!</em></b>")
             await LoginState.phone_number.set()
 
 
@@ -168,29 +200,6 @@ async def get_item(callback: types.CallbackQuery, state: FSMContext):
                 reply_markup=inner_back_button()
             )
             await state.finish()
-
-
-@dp.message_handler(lambda message: message.text.isdigit(), state=UpdateGradeState.id)
-async def process_student_id(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['person_id'] = int(message.text)
-
-    await message.answer("Please enter the new grade:")
-    await UpdateGradeState.score.set()
-
-
-@dp.message_handler(state=UpdateGradeState.score)
-async def process_score(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['score'] = float(message.text)
-
-    # Yangi baho qiymatini serverga yuborish
-    success = update_grade_in_server(data['person_id'], data['score'])
-
-    if success:
-        await message.answer(f"Grade for student {data['person_id']} has been updated to {data['score']}.")
-    else:
-        await message.answer(f"Error updating the grade. Please try again later.")
 
 
 @dp.message_handler(lambda message: message.text.isdigit(), state=AddUserState.id)

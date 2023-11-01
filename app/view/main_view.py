@@ -44,8 +44,19 @@ class AddGradeView(CreateAPIView):
 
 
 class UpdateGradeView(UpdateAPIView):
-    serializer_class = PersonModelSerializer
     queryset = Person.objects.all()
+    serializer_class = PersonModelSerializer
+
+    def update(self, request, *args, **kwargs):
+        student_id = self.kwargs.get('pk')
+        student = get_object_or_404(Person, id=student_id)
+
+        serializer = self.get_serializer(student, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PersonAPIView(APIView):
